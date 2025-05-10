@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+:root {
+         --primary-color: #77DD77;  /* 主色调-薄荷绿 */
+    --secondary-color: #C1E1C1; /* 辅助色-浅苔绿 */
+    --accent-color: #B5EAD7;    /* 强调色-保留原有薄荷色 */
+    --text-color: #2F4F4F;      /* 文字色-深石板灰 */
+        }
+/* 新增完成提示样式 */
+        #completion-message {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            padding: 20px 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            align-items: center;
+            font-size: 24px;
+            color: var(--primary-color);
+            z-index: 100;
+border: 3px solid var(--primary-color);
+            animation: bounce 1s infinite;
+        }
+
+        .emoji {
+            font-size: 40px;
+            margin-right: 15px;
+        }
+
+        /* 新增下标样式 */
+        sub {
+            font-size: 0.6em;
+            vertical-align: sub;
+        }
+
+        /* 调整公式容器样式 */
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        #formula {
+            flex: 1;
+            background: #f0f0f0;
+           display: flex;
+            align-items: center;
+            padding: 20px;
+            font-size: 30px;
+
+            color: var(--text-color);
+            border-bottom: 3px dotted var(--primary-color);
+        }
+
+        /* 模块区域保持原样 */
+        .module-area {
+            flex: 1;
+            background: #e0e0e0;
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            flex-wrap: wrap;
+            align-content: start;
+        }
+
+        .module {
+           width: 250px;
+            height: 70px;
+            border: 3px solid var(--primary-color);
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: move;
+            background: white;
+            font-size: 25px;
+            color: var(--text-color);
+            transition: all 0.3s ease;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
+        }
+       .module:hover {
+            transform: translateY(-5px);
+            background: var(--secondary-color);
+        }
+
+        /* 改进分式样式 */
+        .fraction {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 10px;
+            position: relative;
+        }
+
+        /* 添加永久横线 */
+        .fraction::after {
+            content: "";
+            width: 100%;
+            height: 1px;
+            background: black;
+            position: absolute;
+            top: 50%;
+        }
+
+        /* 调整占位框样式 */
+        .placeholder {
+            width: auto; /* 改为自动宽度 */
+            min-width: 200px;
+            padding: 0 5px;
+            height: 50px;
+            border: 2px dashed var(--primary-color);
+            border-radius: 8px;
+            margin: 5px;
+            transition: all 0.3s;
+            font-size: 25px; /* 调小字号 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap; /* 防止换行 */
+           background: rgba(255,255,255,0.9);
+            transition: all 0.3s ease;
+        }
+
+        /* 错误状态保持原样 */
+        .error {
+            background: #FFB6C1 !important;
+            animation: shake 0.5s;
+        }
+      @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+        }
+/* 其他样式 */
+        sub {
+            font-size: 0.6em;
+            vertical-align: sub;
+            color: #666;
+        }
+        .formula-part {
+            display: flex;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="formula"></div>
+        <div id="modules" class="module-area"></div>
+    </div>
+
+<!-- 新增完成提示 -->
+    <div id="completion-message">
+        <span class="emoji">🎉✔️</span>
+        <span>恭喜你完成了一份简洁的导图！</span>
+    </div>
+
+    <script>
+        const stages = [
+            {
+                formula: 'ρ<sub>液</sub> = ',
+                parts: [{numerator: 'F浮2', denominator: 'gV'}],
+                modules: ['F浮1', 'F浮2','gV']
+            },
+            {
+                formula: ' = ',
+                parts: [{numerator: 'F浮2', denominator: 'g·（F浮1/ρ<sub>水</sub>g）'}],
+                modules: ['F浮1','F浮2','g·（F浮1/ρ<sub>水</sub>g）', 'g·（F浮2/ρ<sub>水</sub>g）']
+            },
+            {
+                formula: ' = ',
+                parts: [{numerator: 'F1-F3', denominator: 'g·（(F1-F2)/ρ<sub>水</sub>g）'}],
+                modules: ['F1-F2', 'F1-F3',  'g·（(F1-F2)/ρ<sub>水</sub>g）', 'g·（(F1-F3)/ρ<sub>水</sub>g）']
+            }
+        ];
+
+        let currentStage = 0;
+        let filledParts = [];
+
+        function createFormula() {
+            const container = document.getElementById('formula');
+            container.innerHTML = '';
+            
+            // 初始公式
+            const rho = document.createElement('span');
+            rho.innerHTML = 'ρ<sub>液</sub> = ';
+            container.appendChild(rho);
+
+            // 添加各个阶段
+            for (let i = 0; i <= currentStage; i++) {
+                const part = document.createElement('div');
+                part.className = 'formula-part';
+                
+                if (i > 0) {
+                    const equal = document.createElement('span');
+                    equal.textContent = ' = ';
+                    part.appendChild(equal);
+                }
+
+                const fraction = document.createElement('div');
+                fraction.className = 'fraction';
+                
+                // 分子部分
+                const numerator = document.createElement('div');
+                numerator.className = 'placeholder';
+                numerator.dataset.stage = i;
+                numerator.dataset.type = 'numerator';
+                
+                // 分母部分
+                const denominator = document.createElement('div');
+                denominator.className = 'placeholder';
+                denominator.dataset.stage = i;
+                denominator.dataset.type = 'denominator';
+
+                fraction.appendChild(numerator);
+                fraction.appendChild(denominator);
+                part.appendChild(fraction);
+                
+                // 已填写内容
+                if (filledParts[i]) {
+                    numerator.innerHTML = filledParts[i].numerator;
+                    denominator.innerHTML = filledParts[i].denominator;
+                    numerator.style.border = 'none';
+                    denominator.style.border = 'none';
+                }
+
+                container.appendChild(part);
+            }
+        }
+
+        function createModules() {
+            const container = document.getElementById('modules');
+            container.innerHTML = '';
+            
+            stages[currentStage].modules.forEach(html => {
+                const module = document.createElement('div');
+                module.className = 'module';
+                module.draggable = true;
+                module.innerHTML = html;
+                // 存储纯文本用于验证
+                module.dataset.value = html.replace(/<sub>.*?<\/sub>/g, '');
+                module.addEventListener('dragstart', handleDragStart);
+                container.appendChild(module);
+            });
+        }
+
+        function handleDragStart(e) {
+            // 传输纯文本数据
+            e.dataTransfer.setData('text/plain', e.target.dataset.value);
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const data = e.dataTransfer.getData('text/plain');
+            const stage = parseInt(e.target.dataset.stage);
+            const type = e.target.dataset.type;
+            // 获取纯文本正确答案
+            const correct = stages[stage].parts[0][type].replace(/<sub>.*?<\/sub>/g, '');
+
+            if (data === correct) {
+                e.target.innerHTML = stages[stage].parts[0][type]; // 显示带格式内容
+                e.target.style.border = 'none';
+                filledParts[stage] = filledParts[stage] || {};
+                filledParts[stage][type] = stages[stage].parts[0][type];
+                
+                if (filledParts[stage].numerator && filledParts[stage].denominator) {
+                    if (currentStage < stages.length - 1) {
+                        currentStage++;
+                        createFormula();
+                        createModules();
+                    } else {
+                        document.getElementById('completion-message').style.display = 'flex';
+                    }
+                }
+            } else {
+                e.target.classList.add('error');
+                setTimeout(() => e.target.classList.remove('error'), 1000);
+            }
+        }
+
+        // 初始化事件
+        document.addEventListener('DOMContentLoaded', () => {
+            const formulaArea = document.getElementById('formula');
+            
+            formulaArea.addEventListener('dragover', e => {
+                e.preventDefault();
+                if (e.target.classList.contains('placeholder')) {
+                    e.target.style.background = '#f0f0f0';
+                }
+            });
+
+            formulaArea.addEventListener('dragleave', e => {
+                if (e.target.classList.contains('placeholder')) {
+                    e.target.style.background = '';
+                }
+            });
+
+            formulaArea.addEventListener('drop', e => {
+                e.preventDefault();
+                if (e.target.classList.contains('placeholder')) {
+                    e.target.style.background = '';
+                    handleDrop(e);
+                }
+            });
+
+            createFormula();
+            createModules();
+        });
+    </script>
+</body>
+</html>
